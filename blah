@@ -1,0 +1,54 @@
+#include <SPI.h>
+
+// Define the SPI pins for ESP32
+#define PIN_SCK 18 // Clock pin
+#define PIN_MISO 19 // Master In Slave Out pin
+#define PIN_MOSI 23 // Master Out Slave In pin
+#define PIN_CS 5 // Chip Select pin
+
+// MCP3208 command bits
+#define MCP3208_START_BIT 0x06
+#define MCP3208_SINGLE_ENDED 0x00
+
+// Function to read ADC value from MCP3208
+int readADC(uint8_t channel) {
+  // SPI initialization
+  SPI.begin(PIN_SCK, PIN_MISO, PIN_MOSI, PIN_CS);
+
+  // Construct the command byte
+  uint8_t command = MCP3208_START_BIT | (MCP3208_SINGLE_ENDED << 6) | (channel << 4);
+
+  // Send command to MCP3208
+  SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0)); // Set SPI settings
+  digitalWrite(PIN_CS, LOW); // Select MCP3208
+  SPI.transfer(command); // Send command byte
+  delayMicroseconds(10); // Wait for conversion (10 microseconds is usually enough)
+  
+  // Read the response from MCP3208
+  uint8_t byte1 = SPI.transfer(0x00); // First byte contains some control bits
+  uint8_t byte2 = SPI.transfer(0x00); // Second byte contains most significant bits
+  uint8_t byte3 = SPI.transfer(0x00); // Third byte contains least significant bits
+  digitalWrite(PIN_CS, HIGH); // Deselect MCP3208
+  SPI.endTransaction(); // End SPI transaction
+  
+  // Combine the bytes to get the ADC value
+  int adc_value = ((byte1 & 0x01) << 11) | (byte2 << 3) | (byte3 >> 5);
+  
+  return adc_value;
+}
+
+void setup() {
+  Serial.begin(115200); // Initialize serial communication for debugging
+}
+
+void loop() {
+  // Read all 8 channels and print their values
+  for (int channel = 0; channel < 8; channel++) {
+    int adc_value = readADC(channel);
+    Serial.print("Channel ");
+    Serial.print(channel);
+    Serial.print(": ");
+    Serial.println(adc_value);
+  }
+  delay(1000); // Delay between readings
+}
